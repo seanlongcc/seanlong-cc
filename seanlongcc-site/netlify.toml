@@ -1,5 +1,5 @@
 [build]
-  base = "/seanlongcc-site"
+  base = "seanlongcc-site"
   publish = "dist"
   command = "npm run build"
 
