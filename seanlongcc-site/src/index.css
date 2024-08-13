@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "TT-Interphases-Pro";
+  src: url("./assets/tt_interphases_pro/TT Interphases Pro Trial Variable.ttf")
+    format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+}
+
+/* @font-face {
+  font-family: "TT-Interphases-Pro";
+  src: url("./assets/tt_interphases_pro/TT Interphases Pro Mono Trial Bold.ttf")
+    format("truetype");
+  font-weight: bold;
+  font-style: normal;
+} */
+
+@layer base {
+  html {
+    font-family: TT-Interphases-Pro, system-ui, sans-serif;
+  }
+}
