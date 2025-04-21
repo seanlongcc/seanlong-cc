@@ -19,7 +19,7 @@ interface TextWarpProps {
 }
 
 const TextWarp = ({
-  text = '              annyeonghaseyo, sean imnida                                         ',
+  text = '                            annyeonghaseyo, sean imnida                                         ',
   spacing = 400,
   speed = 15,
   baseFontSize = 96,
