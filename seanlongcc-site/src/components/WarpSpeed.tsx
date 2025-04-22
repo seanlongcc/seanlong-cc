@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react';
+import gsap from 'gsap';
 
 interface WarpSpeedProps {
   starCount?: number;
@@ -7,6 +8,8 @@ interface WarpSpeedProps {
   starColor?: string;
   /** hover radius in pixels around origin point */
   hoverRadius?: number;
+  /** notify parent when hover starts/stops */
+  onHoverChange?: (hovering: boolean) => void;
 }
 
 const WarpSpeed = ({
@@ -15,13 +18,17 @@ const WarpSpeed = ({
   speedOnHover = 25,
   starColor = 'white',
   hoverRadius = 100,
+  onHoverChange,
 }: WarpSpeedProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stars = useRef<{ x: number; y: number; z: number }[]>([]);
-  const currentSpeed = useRef(speed);
+  // use a mutable object so GSAP can tween its .value
+  const speedObj = useRef({ value: speed });
+  const lastHover = useRef(false);
 
+  // if the `speed` prop itself changes, reset our base speed
   useEffect(() => {
-    currentSpeed.current = speed;
+    speedObj.current.value = speed;
   }, [speed]);
 
   useEffect(() => {
@@ -40,28 +47,67 @@ const WarpSpeed = ({
       y: Math.random() * h - h / 2,
       z: Math.random() * maxDepth,
     });
-
     stars.current = Array.from({ length: starCount }).map(initStar);
 
-    // mousemove listener for hover region
+    // easing functions
+    const rampUp = () => {
+      gsap.to(speedObj.current, {
+        value: speedOnHover,
+        duration: 0.4,
+        ease: 'power1.out',
+      });
+    };
+    const rampDown = () => {
+      gsap.to(speedObj.current, {
+        value: speed,
+        duration: 0.6,
+        ease: 'power1.out',
+      });
+    };
+
+    // hover detection
     const handleMouseMove = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const dx = x - originX;
-      const dy = y - originY;
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const dx = mx - originX;
+      const dy = my - originY;
       const dist = Math.hypot(dx, dy);
-      if (dist < hoverRadius) {
-        currentSpeed.current = speedOnHover;
-      } else {
-        currentSpeed.current = speed;
+      const hovering = dist < hoverRadius;
+
+      // only trigger tweens on state change
+      if (hovering && !lastHover.current) {
+        lastHover.current = true;
+        rampUp();
+        onHoverChange?.(true);
+      } else if (!hovering && lastHover.current) {
+        lastHover.current = false;
+        rampDown();
+        onHoverChange?.(false);
+      }
+    };
+    const handleMouseLeave = () => {
+      if (lastHover.current) {
+        lastHover.current = false;
+        rampDown();
+        onHoverChange?.(false);
       }
     };
     canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseleave', handleMouseLeave);
 
-    let rafId: number;
-    const render = () => {
-      const vel = currentSpeed.current * 0.05;
+    // resize handling
+    const handleResize = () => {
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
+      originX = w * originFactor;
+      originY = h / 2;
+    };
+    window.addEventListener('resize', handleResize);
+
+    // draw loop via GSAP ticker
+    const renderFrame = () => {
+      const vel = speedObj.current.value * 0.05;
       ctx.fillStyle = 'black';
       ctx.fillRect(0, 0, w, h);
       ctx.strokeStyle = starColor;
@@ -69,37 +115,29 @@ const WarpSpeed = ({
       for (const star of stars.current) {
         star.z -= vel;
         if (star.z <= 0) Object.assign(star, initStar());
+
         const k = 128 / star.z;
         const px = star.x * k + originX;
         const py = star.y * k + originY;
-        const tailK = 128 / (star.z + vel);
-        const tx = star.x * tailK + originX;
-        const ty = star.y * tailK + originY;
+        const k2 = 128 / (star.z + vel);
+        const tx = star.x * k2 + originX;
+        const ty = star.y * k2 + originY;
+
         ctx.beginPath();
         ctx.moveTo(px, py);
         ctx.lineTo(tx, ty);
         ctx.stroke();
       }
-
-      rafId = requestAnimationFrame(render);
     };
-
-    render();
-
-    const onResize = () => {
-      w = canvas.width = window.innerWidth;
-      h = canvas.height = window.innerHeight;
-      originX = w * originFactor;
-      originY = h / 2;
-    };
-    window.addEventListener('resize', onResize);
+    gsap.ticker.add(renderFrame);
 
     return () => {
-      window.removeEventListener('resize', onResize);
+      gsap.ticker.remove(renderFrame);
+      window.removeEventListener('resize', handleResize);
       canvas.removeEventListener('mousemove', handleMouseMove);
-      cancelAnimationFrame(rafId);
+      canvas.removeEventListener('mouseleave', handleMouseLeave);
     };
-  }, [starCount, starColor, speed, speedOnHover, hoverRadius]);
+  }, [starCount, speedOnHover, starColor, hoverRadius, speed, onHoverChange]);
 
   return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />;
 };
